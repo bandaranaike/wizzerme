@@ -1,91 +1,105 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
-  runApp(
-    MyApp(
-      items: List<ListItem>.generate(
-        10,
-        (i) {
-          return MessageItem('Sender $i', 'Message body $i');
-        },
-      ),
-    ),
-  );
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final List<ListItem> items;
-
-  const MyApp({super.key, required this.items});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const title = 'Mixed List';
+    return const MaterialApp(
+      home: MyHomePage(),
+    );
+  }
+}
 
-    return MaterialApp(
-      title: title,
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text(title),
-        ),
-        body: ListView.builder(
-          // Let the ListView know how many items it needs to build.
-          itemCount: items.length,
-          // Provide a builder function. This is where the magic happens.
-          // Convert each item into a widget based on the type of item it is.
-          itemBuilder: (context, index) {
-            final item = items[index];
+class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key});
 
-            return ListTile(
-              leading: const Icon(Icons.flight),
-              title: item.buildTitle(context),
-              subtitle: item.buildSubtitle(context),
-              trailing: const Icon(Icons.more_vert),
-            );
-          },
-        ),
+  @override
+  MyHomePageState createState() => MyHomePageState();
+}
+
+class MyHomePageState extends State<MyHomePage> {
+  List<Vacancy> vacancies = [];
+
+  @override
+  void initState() {
+    super.initState();
+    fetchData();
+  }
+
+  Future<void> fetchData() async {
+    final response = await http.get(Uri.parse('http://10.0.2.2/api/search'));
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body)["data"];
+
+      setState(() {
+        vacancies = data.map((item) => Vacancy.fromJson(item)).toList();
+      });
+    } else {
+      throw Exception('Failed to load data');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Vacancies List'),
       ),
+      body: vacancies.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              itemCount: vacancies.length,
+              itemBuilder: (context, index) {
+                return ListTile(
+                  leading: const Icon(Icons.flight),
+                  title: Text(vacancies[index].title),
+                  subtitle: Text('Company: ${vacancies[index].companyId}'),
+                  trailing: const Icon(Icons.more_vert),
+                  visualDensity:
+                      const VisualDensity(horizontal: 4, vertical: 4),
+                  shape: RoundedRectangleBorder(
+                      side: const BorderSide(color: Color(0xFFECECEC), width: 1),
+                      borderRadius: BorderRadius.circular(4)),
+                  onTap: () {
+                    // Handle tap event if needed
+                  },
+                );
+              },
+            ),
     );
   }
 }
 
-/// The base class for the different types of items the list can contain.
-abstract class ListItem {
-  /// The title line to show in a list item.
-  Widget buildTitle(BuildContext context);
+class Vacancy {
+  final String publicId;
+  final String title;
+  final String originalUrl;
+  final String expiresAt;
+  final int companyId;
 
-  /// The subtitle line, if any, to show in a list item.
-  Widget buildSubtitle(BuildContext context);
-}
+  Vacancy({
+    required this.publicId,
+    required this.title,
+    required this.originalUrl,
+    required this.expiresAt,
+    required this.companyId,
+  });
 
-/// A ListItem that contains data to display a heading.
-class CompanyName implements ListItem {
-  final String heading;
-
-  CompanyName(this.heading);
-
-  @override
-  Widget buildTitle(BuildContext context) {
-    return Text(
-      heading,
-      style: Theme.of(context).textTheme.bodyMedium,
+  factory Vacancy.fromJson(Map<String, dynamic> json) {
+    return Vacancy(
+      publicId: json['public_id'],
+      title: json['title'],
+      originalUrl: json['original_url'],
+      expiresAt: json['expires_at'],
+      companyId: json['company_id'],
     );
   }
-
-  @override
-  Widget buildSubtitle(BuildContext context) => const SizedBox.shrink();
-}
-
-/// A ListItem that contains data to display a message.
-class MessageItem implements ListItem {
-  final String sender;
-  final String body;
-
-  MessageItem(this.sender, this.body);
-
-  @override
-  Widget buildTitle(BuildContext context) => Text(sender);
-
-  @override
-  Widget buildSubtitle(BuildContext context) => Text(body);
 }
